@@ -4,6 +4,7 @@ import sys
 import time
 import warnings
 from functools import partial
+from tqdm import tqdm
 
 import experiment as exp
 import lab as B
@@ -23,7 +24,7 @@ warnings.filterwarnings("ignore", category=ToDenseWarning)
 def train(state, model, opt, objective, gen, *, fix_noise):
     """Train for an epoch."""
     vals = []
-    for batch in gen.epoch():
+    for batch in tqdm(gen.epoch()):
         state, obj = objective(
             state,
             model,
@@ -48,7 +49,7 @@ def eval(state, model, objective, gen):
     """Perform evaluation."""
     with torch.no_grad():
         vals, kls, kls_diag = [], [], []
-        for batch in gen.epoch():
+        for batch in gen.epoch(for_plot=True):
             state, obj = objective(
                 state,
                 model,
@@ -292,7 +293,8 @@ def main(**kw_args):
         "unet_strides": (1,) + (2,) * 5,
         "conv_channels": 64,
         "encoder_scales": None,
-        "fullconvgnp_kernel_factor": 2,
+        # "fullconvgnp_kernel_factor": 2,
+        "fullconvgnp_kernel_factor": 8,
         "mean_diff": args.mean_diff,
         # Performance of the ConvGNP is sensitive to this parameter. Moreover, it
         # doesn't make sense to set it to a value higher of the last hidden layer of
@@ -305,9 +307,15 @@ def main(**kw_args):
     gen_train, gen_cv, gens_eval = exp.data[args.data]["setup"](
         args,
         config,
-        num_tasks_train=2**6 if args.train_fast else 2**14,
-        num_tasks_cv=2**6 if args.train_fast else 2**12,
-        num_tasks_eval=2**6 if args.evaluate_fast else 2**12,
+        # num_tasks_train=2**6 if args.train_fast else 2**14,
+        # num_tasks_train=2**6 if args.train_fast else 2**11,
+        num_tasks_train=2**6 if args.train_fast else 2**10,
+        # num_tasks_cv=2**6 if args.train_fast else 2**12,
+        # num_tasks_cv=2**6 if args.train_fast else 2**10,
+        num_tasks_cv=2**6 if args.train_fast else 2**9,
+        # num_tasks_cv=2**6 if args.train_fast else 2**8,
+        # num_tasks_eval=2**6 if args.evaluate_fast else 2**12,
+        num_tasks_eval=2**6 if args.evaluate_fast else 2**10,
         device=device,
     )
 
@@ -335,11 +343,18 @@ def main(**kw_args):
         # See if the experiment constructed the particular flavour of the model already.
         model = config["model"]
     else:
+        if args.data == "mula_solar":
+            # dim_yc = (13,)
+            dim_yc = (3,)
+        elif args.data == "whitelee_wind":
+            dim_yc = (5,)
+        else:
+            dim_yc = (1,) * config["dim_y"]
         # Construct the model.
         if args.model == "cnp":
             model = nps.construct_gnp(
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 dim_embedding=config["dim_embedding"],
                 enc_same=config["enc_same"],
@@ -351,7 +366,7 @@ def main(**kw_args):
         elif args.model == "gnp":
             model = nps.construct_gnp(
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 dim_embedding=config["dim_embedding"],
                 enc_same=config["enc_same"],
@@ -364,7 +379,7 @@ def main(**kw_args):
         elif args.model == "np":
             model = nps.construct_gnp(
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 dim_embedding=config["dim_embedding"],
                 enc_same=config["enc_same"],
@@ -377,7 +392,7 @@ def main(**kw_args):
         elif args.model == "acnp":
             model = nps.construct_agnp(
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 dim_embedding=config["dim_embedding"],
                 enc_same=config["enc_same"],
@@ -390,7 +405,7 @@ def main(**kw_args):
         elif args.model == "agnp":
             model = nps.construct_agnp(
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 dim_embedding=config["dim_embedding"],
                 enc_same=config["enc_same"],
@@ -404,7 +419,7 @@ def main(**kw_args):
         elif args.model == "anp":
             model = nps.construct_agnp(
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 dim_embedding=config["dim_embedding"],
                 enc_same=config["enc_same"],
@@ -419,7 +434,7 @@ def main(**kw_args):
             model = nps.construct_convgnp(
                 points_per_unit=config["points_per_unit"],
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 likelihood="het",
                 conv_arch=args.arch,
@@ -436,7 +451,7 @@ def main(**kw_args):
             model = nps.construct_convgnp(
                 points_per_unit=config["points_per_unit"],
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 likelihood="lowrank",
                 conv_arch=args.arch,
@@ -462,7 +477,7 @@ def main(**kw_args):
             model = nps.construct_convgnp(
                 points_per_unit=config["points_per_unit"],
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 likelihood="het",
                 conv_arch=args.arch,
@@ -480,7 +495,7 @@ def main(**kw_args):
             model = nps.construct_fullconvgnp(
                 points_per_unit=config["points_per_unit"],
                 dim_x=config["dim_x"],
-                dim_yc=(1,) * config["dim_y"],
+                dim_yc=dim_yc,
                 dim_yt=config["dim_y"],
                 conv_arch=args.arch,
                 unet_channels=config["unet_channels"],
@@ -610,49 +625,51 @@ def main(**kw_args):
                 exp.visualise(
                     model,
                     gen,
-                    path=wd.file(f"evaluate-{i + 1:03d}.pdf"),
+                    # path=wd.file(f"evaluate-{i + 1:03d}.pdf"),
+                    path=wd.file(f"evaluate-{i + 1:03d}.png"),
                     config=config,
+                    idx=i,
                 )
 
             # For every objective and evaluation generator, do the evaluation.
-            for objecive_name, objective_eval in objectives_eval:
-                with out.Section(objecive_name):
-                    for gen_name, gen in gens_eval():
-                        with out.Section(gen_name.capitalize()):
-                            state, _ = eval(state, model, objective_eval, gen)
+            # for objecive_name, objective_eval in objectives_eval:
+            #     with out.Section(objecive_name):
+            #         for gen_name, gen in gens_eval():
+            #             with out.Section(gen_name.capitalize()):
+            #                 state, _ = eval(state, model, objective_eval, gen)
 
         # Always run AR evaluation for the conditional models.
-        if not args.no_ar and (
-            args.model in {"cnp", "acnp", "convcnp"} or args.ar or args.also_ar
-        ):
-            # Make some plots.
-            gen = gen_cv()
-            for i in range(args.evaluate_num_plots):
-                exp.visualise(
-                    model,
-                    gen,
-                    path=wd.file(f"evaluate-ar-{i + 1:03d}.pdf"),
-                    config=config,
-                    predict=nps.ar_predict,
-                )
-
-            with out.Section("AR"):
-                for name, gen in gens_eval():
-                    with out.Section(name.capitalize()):
-                        state, _ = eval(
-                            state,
-                            model,
-                            partial(
-                                nps.ar_loglik,
-                                order="random",
-                                normalise=not args.unnormalised,
-                            ),
-                            gen,
-                        )
-
-        # Sleep for sixty seconds before exiting.
-        out.out("Finished evaluation. Sleeping for a minute before exiting.")
-        time.sleep(60)
+        # if not args.no_ar and (
+        #     args.model in {"cnp", "acnp", "convcnp"} or args.ar or args.also_ar
+        # ):
+        #     # Make some plots.
+        #     gen = gen_cv()
+        #     for i in range(args.evaluate_num_plots):
+        #         exp.visualise(
+        #             model,
+        #             gen,
+        #             path=wd.file(f"evaluate-ar-{i + 1:03d}.pdf"),
+        #             config=config,
+        #             predict=nps.ar_predict,
+        #         )
+        #
+        #     with out.Section("AR"):
+        #         for name, gen in gens_eval():
+        #             with out.Section(name.capitalize()):
+        #                 state, _ = eval(
+        #                     state,
+        #                     model,
+        #                     partial(
+        #                         nps.ar_loglik,
+        #                         order="random",
+        #                         normalise=not args.unnormalised,
+        #                     ),
+        #                     gen,
+        #                 )
+        #
+        # # Sleep for sixty seconds before exiting.
+        # out.out("Finished evaluation. Sleeping for a minute before exiting.")
+        # time.sleep(60)
     else:
         # Perform training. First, check if we want to resume training.
         start = 0
@@ -741,6 +758,7 @@ def main(**kw_args):
                         gen,
                         path=wd.file(f"train-epoch-{i + 1:03d}-{j + 1}.pdf"),
                         config=config,
+                        idx=j,
                     )
 
 

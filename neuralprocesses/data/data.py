@@ -33,7 +33,7 @@ class AbstractGenerator(metaclass=abc.ABCMeta):
             dict: A batch, which is a dictionary with keys "contexts", "xt", and "yt".
         """
 
-    def epoch(self):
+    def epoch(self, for_plot=False):
         """Construct a generator for an epoch.
 
         Returns:
@@ -41,7 +41,7 @@ class AbstractGenerator(metaclass=abc.ABCMeta):
         """
 
         def lazy_gen_batch():
-            return self.generate_batch()
+            return self.generate_batch(for_plot=for_plot)
 
         return (lazy_gen_batch() for _ in range(self.num_batches))
 
@@ -211,6 +211,30 @@ def new_batch(gen, dim_y, *, fix_x_across_batch=False, batch_size=None):
     # Set the default for `batch_size`.
     batch_size = batch_size or gen.batch_size
 
+    # def _sample(dist_num, dist_x):
+    #     ns, xs = [], []
+    #     for _ in range(dim_y):
+    #         gen.state, n = dist_num.sample(gen.state, gen.int64)
+    #         if fix_x_across_batch:
+    #             # Set batch dimension to one and then tile.
+    #             gen.state, x = dist_x.sample(
+    #                 gen.state,
+    #                 gen.float64,
+    #                 1,
+    #                 n,
+    #             )
+    #             x = B.tile(x, batch_size, 1, 1)
+    #         else:
+    #             gen.state, x = dist_x.sample(
+    #                 gen.state,
+    #                 gen.float64,
+    #                 batch_size,
+    #                 n,
+    #             )
+    #         ns.append(n)
+    #         xs.append(x)
+    #     return xs, B.concat(*xs, axis=1), ns, sum(ns)
+
     def _sample(dist_num, dist_x):
         ns, xs = [], []
         for _ in range(dim_y):
@@ -225,19 +249,28 @@ def new_batch(gen, dim_y, *, fix_x_across_batch=False, batch_size=None):
                 )
                 x = B.tile(x, batch_size, 1, 1)
             else:
-                gen.state, x = dist_x.sample(
-                    gen.state,
-                    gen.float64,
-                    batch_size,
-                    n,
-                )
+                x_ = B.linspace(gen.float64, 1, n.item(), n.item())
+
+                # UPPER = 100
+                UPPER = 0  # no offset
+
+                gen.state, offset = UniformDiscrete(0, UPPER).sample(gen.state, gen.float64, batch_size)
+                x = (x_ + offset[:, None])[..., None]
             ns.append(n)
             xs.append(x)
         return xs, B.concat(*xs, axis=1), ns, sum(ns)
 
     # For every output, sample the context and inputs.
     xcs, xc, ncs, nc = _sample(gen.num_context, gen.dist_x_context)
-    xts, xt, nts, nt = _sample(gen.num_target, gen.dist_x_target)
+    # xts, xt, nts, nt = _sample(gen.num_target, gen.dist_x_target)
+    if nc > 0:
+        offset = B.squeeze(B.max(xc, axis=1), 1)
+        gen.state, nt = gen.num_target.sample(gen.state, gen.int64)
+        x_ = B.linspace(gen.float64, 1, nt.item(), nt.item())
+        xt = (x_ + offset[:, None])[..., None]
+        xts, nts = [xt], [nt]
+    else:
+        xts, xt, nts, nt = _sample(gen.num_target, gen.dist_x_target)
 
     def set_batch(batch, yc, yt, transpose=True):
         """Fill a batch dictionary `batch`.

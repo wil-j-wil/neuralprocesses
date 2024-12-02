@@ -25,3 +25,4 @@ cover
 .vscode/*
 venv-np
 _experiments
+.idea/

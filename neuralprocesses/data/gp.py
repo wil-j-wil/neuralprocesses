@@ -37,7 +37,11 @@ class GPGenerator(SyntheticGenerator):
         pred_logpdf_diag=True,
         **kw_args,
     ):
-        self.kernel = kernel
+        # self.kernel = kernel
+        # self.kernel = stheno.EQ().stretch(2.0)
+        # self.kernel = stheno.EQ().stretch(48.0) * stheno.EQ().stretch(4.0).periodic(24.0)
+        # self.kernel = stheno.EQ().stretch(4.0).periodic(24.0)
+        self.kernel = stheno.EQ().stretch(48.0) * stheno.Matern12().stretch(4.0).periodic(24.0)
         self.pred_logpdf = pred_logpdf
         self.pred_logpdf_diag = pred_logpdf_diag
         super().__init__(*args, **kw_args)
@@ -54,16 +58,19 @@ class GPGenerator(SyntheticGenerator):
 
             # If `self.h` is specified, then we create a multi-output GP. Otherwise, we
             # use a simple regular GP.
+            kernel = self.kernel
+            # lengthscale = B.rand() + 0.1
+            # kernel = stheno.EQ().stretch(lengthscale)
             if self.h is None:
                 with stheno.Measure() as prior:
-                    f = stheno.GP(self.kernel)
+                    f = stheno.GP(kernel)
                     # Construct FDDs for the context and target points.
                     fc = f(xc, self.noise)
                     ft = f(xt, self.noise)
             else:
                 with stheno.Measure() as prior:
                     # Construct latent processes and initialise output processes.
-                    us = [stheno.GP(self.kernel) for _ in range(self.dim_y_latent)]
+                    us = [stheno.GP(kernel) for _ in range(self.dim_y_latent)]
                     fs = [0 for _ in range(self.dim_y)]
                     # Perform matrix multiplication.
                     for i in range(self.dim_y):
@@ -83,6 +90,8 @@ class GPGenerator(SyntheticGenerator):
 
             # Sample context and target set.
             self.state, yc, yt = prior.sample(self.state, fc, ft)
+            yc = B.log(1 + B.exp(yc))
+            yt = B.log(1 + B.exp(yt))
 
             # Make the new batch.
             batch = {}

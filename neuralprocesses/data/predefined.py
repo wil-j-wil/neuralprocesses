@@ -6,6 +6,7 @@ from .gp import GPGenerator
 from .mixgp import MixtureGPGenerator
 from .mixture import MixtureGenerator
 from .sawtooth import SawtoothGenerator
+from .forecasting import MULASolarGenerator, WhiteleeWindGenerator
 
 __all__ = ["construct_predefined_gens"]
 
@@ -17,11 +18,14 @@ def construct_predefined_gens(
     num_tasks=2**14,
     dim_x=1,
     dim_y=1,
-    x_range_context=(-2, 2),
-    x_range_target=(-2, 2),
+    # x_range_context=(-2, 2),
+    x_range_context=(0, 100),
+    # x_range_target=(-2, 2),
+    x_range_target=(0, 100),
     mean_diff=0.0,
     pred_logpdf=True,
     pred_logpdf_diag=True,
+    eval_mode=False,
     device="cpu",
 ):
     """Construct a number of predefined data generators.
@@ -73,8 +77,8 @@ def construct_predefined_gens(
             seed=seed,
             noise=0.05,
             kernel=kernel,
-            num_context=UniformDiscrete(0, 30 * dim_x),
-            num_target=UniformDiscrete(50 * dim_x, 50 * dim_x),
+            num_context=UniformDiscrete(0, 60 * dim_x),  # num_context must vary to produce robust models
+            num_target=UniformDiscrete(48 * dim_x, 48 * dim_x),  # num_target can be static
             pred_logpdf=pred_logpdf,
             pred_logpdf_diag=pred_logpdf_diag,
             **config,
@@ -139,4 +143,30 @@ def construct_predefined_gens(
             **config,
         )
 
+    gens["mula_solar"] = MULASolarGenerator(
+        dtype,
+        seed=seed,
+        # horizon=48,
+        horizon=48 * 2,
+        # history_max=60,
+        history_max=48 * 2,
+        num_tasks=num_tasks,
+        batch_size=batch_size,
+        eval_mode=eval_mode,
+        device=device,
+    )
+    gens["whitelee_wind"] = WhiteleeWindGenerator(
+        dtype,
+        seed=seed,
+        # horizon=48,
+        # horizon=120,
+        horizon=48 * 2,
+        # history_max=60,
+        history_max=48 * 2,
+        # history_max=310,
+        num_tasks=num_tasks,
+        batch_size=batch_size,
+        eval_mode=eval_mode,
+        device=device,
+    )
     return gens

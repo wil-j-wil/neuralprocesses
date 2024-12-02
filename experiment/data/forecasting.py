@@ -18,20 +18,24 @@ def setup(name, args, config, *, num_tasks_train, num_tasks_cv, num_tasks_eval, 
     config["unet_strides"] = (2,) * 6
     config["conv_receptive_field"] = 48
     config["margin"] = 0.1
-    if args.dim_x == 1:
-        config["points_per_unit"] = 2
-    elif args.dim_x == 2:
-        # Reduce the PPU to reduce memory consumption.
-        config["points_per_unit"] = 32
-        # Since the PPU is reduced, we can also take off a layer of the UNet.
-        config["unet_strides"] = config["unet_strides"][:-1]
-        config["unet_channels"] = config["unet_channels"][:-1]
-    else:
-        raise RuntimeError(f"Invalid input dimensionality {args.dim_x}.")
+    # if args.dim_x == 1:
+    config["points_per_unit"] = 1
+    # config["points_per_unit"] = 0.5
+    # elif args.dim_x == 2:
+    #     # Reduce the PPU to reduce memory consumption.
+    #     config["points_per_unit"] = 32
+    #     # Since the PPU is reduced, we can also take off a layer of the UNet.
+    #     config["unet_strides"] = config["unet_strides"][:-1]
+    #     config["unet_channels"] = config["unet_channels"][:-1]
+    # else:
+    #     raise RuntimeError(f"Invalid input dimensionality {args.dim_x}.")
 
     # Other settings specific to the GP experiments:
     config["plot"] = {
-        1: {"range": (0, 120), "axvline": [0]},
+        # 1: {"range": (-60, 48), "axvline": [0]},
+        # 1: {"range": (-60, 120), "axvline": [0]},
+        1: {"range": (-48 * 2, 48 * 2), "axvline": [0]},
+        # 1: {"range": (-310, 125), "axvline": [0]},
         2: {"range": ((-2, 2), (-2, 2))},
     }
     config["transform"] = None
@@ -60,6 +64,7 @@ def setup(name, args, config, *, num_tasks_train, num_tasks_cv, num_tasks_eval, 
         pred_logpdf_diag=True,
         device=device,
         mean_diff=config["mean_diff"],
+        eval_mode=True,
     )[name]
 
     def gens_eval():
@@ -91,14 +96,8 @@ def setup(name, args, config, *, num_tasks_train, num_tasks_cv, num_tasks_eval, 
     return gen_train, gen_cv, gens_eval
 
 names = [
-    "eq",
-    "matern",
-    "weakly-periodic",
-    "mix-eq",
-    "mix-matern",
-    "mix-weakly-periodic",
-    "sawtooth",
-    "mixture",
+    "mula_solar",
+    "whitelee_wind",
 ]
 
 for name in names:
